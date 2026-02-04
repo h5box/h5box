@@ -2,7 +2,8 @@
 
 <div align="center">
   <a href="https://h5box.skskk.com">
-    <img width="100px" alt="logo" src="https://h5box.skskk.com/h5box-logo.svg"/>
+    <img width="100px" alt="logo" src="
+    https://avatars.githubusercontent.com/u/44342415?v=4&size=128"/>
   </a>
   <p>
     <em>一个现代化的、基于浏览器的桌面环境，用于在本地管理和运行 HTML5 应用程序。本项目基于 Vue 3、TypeScript 和 IndexedDB 构建。</em>
@@ -22,34 +23,12 @@
 </ul>
 
 <h2>快速开始</h2>
+访问 <a href="https://h5box.github.io/h5box/">h5box.github.io/h5box/</a>
 
-<h3>环境要求</h3>
 
-<ul>
-  <li>Node.js (v16 或更高版本)</li>
-  <li>npm 或 pnpm</li>
-</ul>
 
-<h3>安装步骤</h3>
 
-<ol>
-  <li>
-    <p>克隆仓库：</p>
-    <pre><code>git clone https://github.com/yourusername/html-app-launcher.git
-cd html-app-launcher</code></pre>
-  </li>
-  <li>
-    <p>安装依赖：</p>
-    <pre><code>npm install</code></pre>
-  </li>
-  <li>
-    <p>启动开发服务器：</p>
-    <pre><code>npm run dev</code></pre>
-  </li>
-  <li>
-    <p>打开浏览器并访问 <code>http://localhost:3000</code>（或终端中显示的 URL）。</p>
-  </li>
-</ol>
+
 
 <h2>使用说明</h2>
 
@@ -61,17 +40,17 @@ cd html-app-launcher</code></pre>
   <li><strong>数据导出</strong>：在桌面空白处点击右键，选择“导出全部应用 (JSON)”进行备份。</li>
 </ul>
 
-<h2>生产环境构建</h2>
 
-<p>如需构建用于生产环境的静态文件：</p>
 
-<pre><code>npm run build</code></pre>
 
-<p>构建产物将输出到 <code>dist</code> 目录。</p>
 
-<h2>贡献指南</h2>
 
-<p>欢迎提交 Pull Request。对于重大更改，请先提交 Issue 进行讨论。</p>
+<h2>开发指南</h2>
+如果你想开发一个应用市场
+
+可以参考 [AppMarketAPI.md](AppMarketAPI.md) 文档。
+
+
 
 <h2>开源协议</h2>
 
