@@ -37,9 +37,11 @@ export const permissionService = {
                         // Merge new permissions with existing ones
                         const newPermissions = [...new Set([...granted, ...missing])];
                         await db.setPermissions(appId, newPermissions);
+                        resolve(true);
+                    } else {
+                        reject(new Error('User denied permission'));
                     }
                     currentRequest.value = null;
-                    resolve(result);
                 },
                 reject: (err) => {
                     currentRequest.value = null;

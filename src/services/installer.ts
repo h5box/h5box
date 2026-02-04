@@ -9,6 +9,15 @@ export async function calculateFileHash(file: Blob): Promise<string> {
   return hashHex.substring(0, 16); // Return first 16 characters
 }
 
+async function calculateStringHash(content: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(content);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex.substring(0, 16);
+}
+
 function generateDefaultIcon(title: string): string {
   const colors = [
     ['#f87171', '#ef4444'], // red
@@ -113,9 +122,9 @@ export async function installApp(
 
   
   if (!appIdentifier) {
-      // Generate random if not present (10 chars)
-      const randomName = Math.random().toString(36).substring(2, 10);
-      appIdentifier = `${getBrowserUser()}/app-${randomName}`;
+      // Generate hash from title to ensure consistency for same app name
+      const hash = await calculateStringHash(title+author);
+      appIdentifier = `${getBrowserUser()}/app-${hash.substring(0, 10)}`;
   }
 
   // Icon handling

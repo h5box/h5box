@@ -92,15 +92,14 @@ async function checkPermission(appId: string, permission: string) {
     }
 }
 
-async function handleInstallApp(payload: { url: string; appIdentifier?: string; title?: string; icon?: string; version?: string }, sourceAppId: string) {
-    if (!payload.url) throw new Error('Missing URL');
+async function handleInstallApp(payload: { file?: Blob; appIdentifier?: string; title?: string; icon?: string; version?: string }, sourceAppId: string) {
+    let file: File;
 
-    // Permission already checked.
-    // 2. Download
-    const response = await fetch(payload.url);
-    if (!response.ok) throw new Error(`Failed to download: ${response.statusText}`);
-    const blob = await response.blob();
-    const file = new File([blob], 'app.zip', { type: 'application/zip' });
+    if (payload.file) {
+        file = new File([payload.file], 'app.zip', { type: 'application/zip' });
+    } else {
+        throw new Error('Missing File. URL installation is no longer supported.');
+    }
 
     // 3. Install
     // Use appStore to leverage smart install features (like update confirmation)

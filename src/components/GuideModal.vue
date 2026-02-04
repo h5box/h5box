@@ -26,7 +26,7 @@ const isInstalling = ref(false);
 const recommendedApps = [
     {
         title: '应用市场',
-        url: 'http://localhost:5173/',
+        url: 'https://app-market.skskk.com/',
         description: '官方应用商店，发现更多精彩应用',
         appIdentifier: 'h5box/app-market',
         icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none"><defs><linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6366f1" /><stop offset="100%" stop-color="#9333ea" /></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#bg-gradient)" /><g transform="translate(12, 12)"><path stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></g></svg>'

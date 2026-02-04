@@ -149,6 +149,7 @@ onBeforeUnmount(() => {
     >
        <div class="font-bold text-gray-800 dark:text-white mb-1 text-sm">{{ props.app.title }}</div>
        <div class="text-[10px] text-gray-400 font-mono mb-1 select-all">ID: {{ props.app.id }}</div>
+       <div v-if="props.app.version" class="text-[10px] text-gray-500 mb-1">Version: {{ props.app.version }}</div>
        <div v-if="props.app.author && props.app.author !== 'Unknown'" class="mb-1">By: {{ props.app.author }}</div>
        <div v-if="props.app.description" class="line-clamp-3 mb-2 text-gray-500 dark:text-gray-400 italic">{{ props.app.description }}</div>
        <div v-if="props.app.installSource" class="text-indigo-500 dark:text-indigo-400 text-[10px] font-medium mb-1">Source: {{ props.app.installSource }}</div>

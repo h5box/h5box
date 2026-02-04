@@ -76,7 +76,7 @@ await callSystem('system.requestPermissions', {
 
 *   **Type**: `system.installApp`
 *   **Payload**:
-    *   `url` (string): 应用 ZIP 包的下载地址。必须是支持 CORS 的地址，或者同域地址。
+    *   `file` (Blob): 应用 ZIP 包的二进制数据。使用 Blob/File 可以避免跨域 (CORS) 问题。
     *   `appIdentifier` (string, optional): 应用唯一标识符（如 `user/repo`）。若提供此字段，系统将检测是否已安装同名应用：
         *   若已安装且版本不同，将弹出更新确认框。
         *   若已安装且版本相同，将跳过安装。
@@ -91,8 +91,9 @@ await callSystem('system.requestPermissions', {
 *   **示例**:
 
 ```javascript
+// 假设已获取 blob
 callSystem('system.installApp', {
-  url: 'https://example.com/apps/my-app.zip',
+  file: blobData,
   appIdentifier: 'com.example.myapp',
   title: 'My Custom App',
   icon: 'https://example.com/icon.png'
@@ -226,8 +227,8 @@ export class SystemBridge {
       return this.request('system.requestPermissions', { permissions });
   }
 
-  async installApp(url) {
-    return this.request('system.installApp', { url });
+  async installApp(payload) {
+    return this.request('system.installApp', payload);
   }
 
   async getInstalledApps() {
@@ -262,7 +263,15 @@ const bridge = new SystemBridge();
         // 3. 安装应用
         document.getElementById('installBtn').onclick = async () => {
           try {
-            const res = await bridge.installApp('http://localhost:8000/apps/download/some-app.zip');
+            // 获取 Blob
+            const response = await fetch('http://localhost:8000/apps/download/some-app.zip');
+            const blob = await response.blob();
+
+            const res = await bridge.installApp({
+                file: blob, 
+                title: 'My Custom App'
+            });
+
             // 安装成功后尝试打开
             if(confirm('安装成功，是否打开？')) {
                 await bridge.openApp(res.appId);
