@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { type AppMetadata } from '../db';
 
 const props = defineProps<{

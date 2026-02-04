@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useToast } from '../composables/useToast';
 
-const { toasts, removeToast, pauseToast, resumeToast } = useToast();
+const { toasts, pauseToast, resumeToast } = useToast();
 </script>
 
 <template>

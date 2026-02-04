@@ -1,4 +1,3 @@
-import { installApp } from './installer';
 import { db } from '../db';
 import { permissionService } from './permissionService';
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useAppStore } from '../stores/apps';
 import JSZip from 'jszip';
 import { useToast } from '../composables/useToast';
