@@ -52,7 +52,8 @@ const appHandler = async ({ url }: { url: URL; params?: any }) => {
      // For NavigationRoute: we might need to parse manually if regex isn't used in same way
      
      // Let's use the URL pathname to be safe and consistent
-     const match = /^\/app\/([^/]+)(?:\/(.*))?$/.exec(url.pathname);
+     // CHANGED: Use a regex that allows a prefix (e.g. /repo-name/app/...) to support GitHub Pages subdirectories
+     const match = /(?:^|\/)app\/([^/]+)(?:\/(.*))?$/.exec(url.pathname);
      if (!match) return new Response('Invalid App URL', { status: 400 });
 
      const appId = match[1];
@@ -77,7 +78,7 @@ const appHandler = async ({ url }: { url: URL; params?: any }) => {
 // This ensures that typing the URL in the bar or refreshing works
 const navigationRoute = new NavigationRoute(appHandler, {
   allowlist: [
-    /^\/app\//,
+    /\/app\//, // Match /app/ anywhere in the path
   ],
 });
 registerRoute(navigationRoute);
@@ -85,7 +86,7 @@ registerRoute(navigationRoute);
 // 2. Handle sub-resource requests (CSS, JS, Images inside the app)
 // These are not navigations but standard fetches
 registerRoute(
-   ({ url }) => url.pathname.startsWith('/app/'),
+   ({ url }) => url.pathname.includes('/app/'),
    appHandler
 );
 

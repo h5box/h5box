@@ -60,7 +60,8 @@ const app = createApp(App)
 
 // Detect if we are running inside an iframe as an app but loaded the main app code (SW bypass)
 // This happens if the Service Worker failed to intercept the request and the server returned index.html (SPA fallback)
-if (window.location.pathname.startsWith('/app/')) {
+// CHANGED: Use includes() instead of startsWith() to support subdirectories (GitHub Pages)
+if (window.location.pathname.includes('/app/')) {
     document.body.innerHTML = `
         <div style="padding: 20px; font-family: sans-serif; color: #333;">
             <h1 style="color: #e11d48;">Connection Failed</h1>

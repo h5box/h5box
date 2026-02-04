@@ -240,7 +240,8 @@ const handleOpenNewWindow = () => {
      const height = 600;
      const left = (window.screen.width - width) / 2;
      const top = (window.screen.height - height) / 2;
-     window.open(`/app/${appId}/index.html`, '_blank', `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`);
+     // CHANGED: Use relative path for subdirectories
+     window.open(`./app/${appId}/index.html`, '_blank', `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`);
  };
 
 const handleOpenApp = () => {

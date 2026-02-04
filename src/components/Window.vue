@@ -29,7 +29,11 @@ const isResizing = ref(false);
 const isMaximized = ref(false);
 const dragOffset = { x: 0, y: 0 };
 
-const appUrl = computed(() => `/app/${props.app.id}/index.html`);
+const appUrl = computed(() => {
+  // Use relative path to support deployment in subdirectories (e.g. GitHub Pages)
+  // This assumes the app is running at the root of the relative path
+  return `./app/${props.app.id}/index.html`;
+});
 
 const windowStyle = computed(() => {
   if (isMaximized.value) {

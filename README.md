@@ -1,6 +1,10 @@
-# 网页小程序启动器 (Web App Launcher)
+# H5Box 网页小程序启动器
+<div align="center">
+  <a href="https://h5box.skskk.com"><img width="100px" alt="logo" src="https://h5box.skskk.com/public/h5box-logo.png"/></a>
+  <p><em>一个现代化的、基于浏览器的桌面环境，用于在本地管理和运行 HTML5 应用程序。本项目基于 Vue 3、TypeScript 和 IndexedDB 构建。</em></p>
+<div>
 
-一个现代化的、基于浏览器的桌面环境，用于在本地管理和运行 HTML5 应用程序。本项目基于 Vue 3、TypeScript 和 IndexedDB 构建。
+
 
 ## 功能特性
 
