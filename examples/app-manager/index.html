@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>应用管理器</title>
+    <meta name="description" content="管理系统中已安装的应用，支持查看详情和卸载">
+    <meta name="author" content="System">
+    <meta name="keywords" content="tool,system,manager">
+    <link rel="icon" href="icon.svg">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>应用管理</h1>
+            <button id="refreshBtn" class="icon-btn" title="刷新列表">
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+            </button>
+        </header>
+        
+        <div id="loading" class="state-view">
+            <div class="spinner"></div>
+            <p>正在加载应用列表...</p>
+        </div>
+
+        <div id="empty" class="state-view hidden">
+            <p>暂无已安装的应用</p>
+        </div>
+
+        <div id="appList" class="app-grid hidden">
+            <!-- App cards will be inserted here -->
+        </div>
+    </div>
+
+    <!-- Template for App Card -->
+    <template id="appCardTemplate">
+        <div class="app-card">
+            <div class="app-icon-wrapper">
+                <img class="app-icon" src="" alt="icon">
+            </div>
+            <div class="app-info">
+                <div class="app-header">
+                    <h3 class="app-title"></h3>
+                    <div class="app-badges">
+                        <span class="app-version"></span>
+                        <span class="app-source-badge app-source"></span>
+                    </div>
+                </div>
+                <div class="app-meta-row">
+                    <span class="app-author"></span>
+                    <span class="meta-separator">•</span>
+                    <span class="app-time"></span>
+                </div>
+                <p class="app-desc"></p>
+            </div>
+            <div class="app-actions">
+                <button class="btn btn-primary open-btn">打开</button>
+                <button class="btn btn-danger uninstall-btn">卸载</button>
+            </div>
+        </div>
+    </template>
+
+    <script src="app.js"></script>
+</body>
+</html>

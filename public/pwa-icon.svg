@@ -1,0 +1,31 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="main-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B6B" />
+      <stop offset="100%" stop-color="#FF4757" />
+    </linearGradient>
+  </defs>
+  
+  <g stroke="url(#main-gradient)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Regular Hexagon Outline (Pointy Top) -->
+    <!-- Vertices calculation for 512x512 canvas, center (256, 256), radius ~220 -->
+    <!-- Points: 
+         Top: (256, 36)
+         Top-Right: (446.5, 146) -> rounded to 446
+         Bottom-Right: (446.5, 366) -> rounded to 446
+         Bottom: (256, 476)
+         Bottom-Left: (65.5, 366) -> rounded to 66
+         Top-Left: (65.5, 146) -> rounded to 66
+    -->
+    <path d="M256 36 L446 146 L446 366 L256 476 L66 366 L66 146 Z" 
+          stroke-width="48" fill="none"/>
+
+    <!-- Inner Code Symbol (Centered) -->
+    <!-- Left Bracket < -->
+    <path d="M190 216 L150 256 L190 296" stroke-width="36" fill="none"/>
+    <!-- Slash / -->
+    <path d="M280 206 L232 306" stroke-width="36" fill="none"/>
+    <!-- Right Bracket > -->
+    <path d="M322 216 L362 256 L322 296" stroke-width="36" fill="none"/>
+  </g>
+</svg>
