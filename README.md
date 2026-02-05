@@ -2,8 +2,7 @@
 
 <div align="center">
   <a href="https://h5box.skskk.com">
-    <img width="100px" alt="logo" src="
-    https://avatars.githubusercontent.com/u/44342415?v=4&size=128"/>
+    <img width="100px" alt="logo" src="https://github.com/h5box/h5box/raw/main/public/pwa-icon.svg"/>
   </a>
   <p>
     <em>一个现代化的、基于浏览器的桌面环境，用于在本地管理和运行 HTML5 应用程序。本项目基于 Vue 3、TypeScript 和 IndexedDB 构建。</em>
