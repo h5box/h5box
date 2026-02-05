@@ -1,9 +1,8 @@
 <h1 align="center">H5Box 网页小程序启动器</h1>
 
 <div align="center">
-  <a href="https://h5box.skskk.com">
-    <img width="100px" alt="logo" src="
-    https://avatars.githubusercontent.com/u/44342415?v=4&size=128"/>
+  <a>
+    <img width="100px" alt="logo" src="https://github.com/h5box/h5box/raw/main/public/pwa-icon.svg"/>
   </a>
   <p>
     <em>一个现代化的、基于浏览器的桌面环境，用于在本地管理和运行 HTML5 应用程序。本项目基于 Vue 3、TypeScript 和 IndexedDB 构建。</em>
@@ -17,13 +16,12 @@
   <li><strong>持久化存储</strong>：应用及其状态通过 IndexedDB 存储在本地浏览器中。</li>
   <li><strong>窗口管理</strong>：支持可拖拽、可调整大小的窗口，并具备状态持久化功能。</li>
   <li><strong>PWA 支持</strong>：支持离线运行，并可作为渐进式 Web 应用（PWA）安装到系统。</li>
-  <li><strong>应用市场</strong>：内置应用市场界面，支持发现和导入应用（基于 JSON 配置）。</li>
   <li><strong>导入/导出</strong>：支持将所有应用备份为 JSON 文件，或将单个应用导出为 ZIP 文件。</li>
   <li><strong>个性化定制</strong>：支持拖拽排序应用图标、重命名应用以及自定义图标。</li>
 </ul>
 
 <h2>快速开始</h2>
-访问 <a href="https://h5box.github.io/h5box/">h5box.github.io/h5box/</a>
+访问 <a href="https://h5box.github.io/h5box/">h5box.github.io/h5box</a>
 
 
 
