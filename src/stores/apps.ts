@@ -363,6 +363,23 @@ export const useAppStore = defineStore('apps', {
       if (restoredCount === 0) return false;
       await this.loadApps();
       return true;
+    },
+    async clearAllApps() {
+      const appsCopy = [...this.apps];
+      for (const app of appsCopy) {
+        await this.uninstallApp(app.id);
+      }
+    },
+    async updateAppOrder(newOrderApps: AppMetadata[]) {
+        this.apps = newOrderApps;
+        // Save all to DB with new order
+        await Promise.all(newOrderApps.map(async (app, index) => {
+            // Update if order changed or just to be safe
+            if (app.order !== index) {
+                app.order = index;
+                await db.updateApp(toRaw(app));
+            }
+        }));
     }
   }
 });

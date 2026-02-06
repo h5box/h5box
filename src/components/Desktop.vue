@@ -1,31 +1,38 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, onUnmounted, computed } from 'vue';
 import { useAppStore } from '../stores/apps';
 import { useDropZone } from '@vueuse/core';
+import draggable from 'vuedraggable';
 import { useToast } from '../composables/useToast';
-import JSZip from 'jszip';
+import { useSettings } from '../composables/useSettings';
+import { handleBridgeMessage } from '../services/bridge';
 import { DB_VERSION } from '../db';
 import AppIcon from './AppIcon.vue';
 import Window from './Window.vue';
 import EditAppModal from './EditAppModal.vue';
 import RenameAppModal from './RenameAppModal.vue';
-import ExportAppsModal from './ExportAppsModal.vue';
 import UninstallAppModal from './UninstallAppModal.vue';
 import PermissionRequestModal from './PermissionRequestModal.vue';
 import SettingsModal from './SettingsModal.vue';
 import GuideModal from './GuideModal.vue';
 import AppUpdateModal from './AppUpdateModal.vue';
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 
 const appStore = useAppStore();
+const draggableApps = computed({
+    get: () => appStore.apps,
+    set: (value) => {
+        appStore.updateAppOrder(value);
+    }
+});
 const { addToast } = useToast();
+const { openMethod } = useSettings();
 const dropZoneRef = ref<HTMLElement | null>(null);
 const installFileInputRef = ref<HTMLInputElement | null>(null);
 // const showAppStore = ref(false); // Removed
 const showEditModal = ref(false);
 const showRenameModal = ref(false);
-const showExportModal = ref(false);
 const showUninstallModal = ref(false);
 const showSettingsModal = ref(false);
 const showGuideModal = ref(false);
@@ -33,12 +40,17 @@ const editAppId = ref('');
 const renameAppId = ref('');
 const uninstallAppId = ref('');
 const uninstallBusy = ref(false);
-const exportBusy = ref(false);
-const exportMode = ref<'json' | 'zip'>('json');
+
+const isDraggingApp = ref(false);
+const isDragOverFiles = ref(false);
 
 // Drop Zone Logic (Install)
-const { isOverDropZone } = useDropZone(dropZoneRef, {
+// We still use useDropZone for the onDrop handler, but we manage isDragOverFiles manually
+// because useDropZone.isOverDropZone is triggered by any drag event (including sorting apps)
+useDropZone(dropZoneRef, {
     onDrop: async (files) => {
+        isDragOverFiles.value = false;
+        if (isDraggingApp.value) return; // Prevent file drop logic if dragging app
         if (!files) return;
         // files is File[] | null
         for (const file of files) {
@@ -53,12 +65,22 @@ const { isOverDropZone } = useDropZone(dropZoneRef, {
                 addToast(`无法安装 "${file.name}": 仅支持 .zip 格式的应用包`, 'warning');
             }
         }
+    },
+    onEnter: (_files, event) => {
+        // Check if the dragged item is a file
+        if (event && event.dataTransfer && event.dataTransfer.types.includes('Files')) {
+            isDragOverFiles.value = true;
+        }
+    },
+    onLeave: () => {
+        isDragOverFiles.value = false;
     }
 });
 
 // Window Management
 const openWindows = ref<string[]>([]);
 const windowZIndices = ref<Record<string, number>>({});
+const popupWindows = new Map<Window, string>(); // Map<WindowProxy, appId>
 let maxZIndex = 100;
 
 const openApp = async (id: string) => {
@@ -68,6 +90,39 @@ const openApp = async (id: string) => {
   bringToFront(id);
   // Clear new flag when opening
   await appStore.clearNewFlag(id);
+};
+
+const openAppInPopup = (appId: string) => {
+     // Popup window instead of new tab
+     // Auto-size logic: 85% of screen width/height, centered
+     const screenW = window.screen.availWidth;
+     const screenH = window.screen.availHeight;
+     
+     const width = Math.floor(screenW * 0.65);
+     const height = Math.floor(screenH * 0.65);
+     const left = (screenW - width) / 2;
+     const top = (screenH - height) / 2;
+     
+     // CHANGED: Use relative path for subdirectories
+     const win = window.open(`./app/${appId}/index.html`, '_blank', `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`);
+     
+     if (win) {
+         popupWindows.set(win, appId);
+         
+         // Optional: Poll to clean up closed windows from map?
+         // For now, we just keep them. Memory leak is minimal (Window reference).
+         // We can use a WeakMap if Window was the key, but we need to iterate or lookup.
+         // Actually Map<Window, string> is fine.
+     }
+};
+
+const handleAppLaunch = async (id: string) => {
+    if (openMethod.value === 'popup') {
+        openAppInPopup(id);
+        await appStore.clearNewFlag(id);
+    } else {
+        openApp(id);
+    }
 };
 
 const closeApp = (id: string) => {
@@ -121,7 +176,7 @@ const showContextMenu = (e: MouseEvent, appId: string) => {
 };
 
 const showDesktopMenu = (e: MouseEvent) => {
-    if (showEditModal.value || showRenameModal.value || showExportModal.value || showUninstallModal.value) return;
+    if (showEditModal.value || showRenameModal.value || showUninstallModal.value) return;
     contextMenu.value = {
         visible: true,
         x: e.clientX,
@@ -235,99 +290,49 @@ const handleConfirmUninstall = async () => {
 const handleOpenNewWindow = () => {
      const appId = contextMenu.value.appId;
      closeContextMenu();
-     // Popup window instead of new tab
-     const width = 800;
-     const height = 600;
-     const left = (window.screen.width - width) / 2;
-     const top = (window.screen.height - height) / 2;
-     // CHANGED: Use relative path for subdirectories
-     window.open(`./app/${appId}/index.html`, '_blank', `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`);
+     openAppInPopup(appId);
  };
 
 const handleOpenApp = () => {
-    openApp(contextMenu.value.appId);
+    handleAppLaunch(contextMenu.value.appId);
     closeContextMenu();
 };
 
-const handleExportAllApps = () => {
-    closeContextMenu();
-    exportMode.value = 'json';
-    showExportModal.value = true;
-};
-
-const handleExportAllAppsZip = () => {
-    closeContextMenu();
-    exportMode.value = 'zip';
-    showExportModal.value = true;
-};
-
-const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-};
-
-const buildExportManifest = (meta: { author: string; repository: string }) => {
-    return {
-        author: meta.author,
-        repository: meta.repository,
-        updated: new Date().toISOString(),
-        apps: appStore.apps.map(app => {
-            const { zipBlob, ...rest } = app;
-            return {
-                ...rest,
-                zipPath: zipBlob ? `apps/${app.id}.zip` : null
-            };
-        })
-    };
-};
-
-const handleDoExport = async (meta: { author: string; repository: string }) => {
-    if (exportBusy.value) return;
-    exportBusy.value = true;
-    try {
-        const manifest = buildExportManifest(meta);
-
-        if (exportMode.value === 'json') {
-            const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
-            downloadBlob(blob, 'apps.json');
-            showExportModal.value = false;
-            return;
+const handleGlobalMessage = async (event: MessageEvent) => {
+    // Check if the source is one of our known popup windows
+    const sourceWindow = event.source as Window;
+    if (!sourceWindow) return;
+    
+    const appId = popupWindows.get(sourceWindow);
+    if (appId) {
+        // Handle bridge message from popup
+        const result = await handleBridgeMessage(
+            event, 
+            appId, 
+            sourceWindow,
+            {
+                onOpenApp: (id) => handleAppLaunch(id)
+            },
+            { isPopup: true }
+        );
+        
+        if (result && result.success) {
+            if (result.type === 'system.installApp' || result.type === 'system.uninstallApp') {
+                await appStore.loadApps();
+            }
         }
-
-        const zip = new JSZip();
-        zip.file('apps.json', JSON.stringify(manifest, null, 2));
-        const appsFolder = zip.folder('apps');
-
-        for (const app of appStore.apps) {
-            if (!app.zipBlob) continue;
-            appsFolder?.file(`${app.id}.zip`, app.zipBlob);
-        }
-
-        const zipBlob = await zip.generateAsync({
-            type: 'blob',
-            compression: 'DEFLATE',
-            compressionOptions: { level: 6 }
-        });
-
-        const date = new Date();
-        const pad = (n: number) => String(n).padStart(2, '0');
-        const filename = `apps_${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}.zip`;
-        downloadBlob(zipBlob, filename);
-        showExportModal.value = false;
-    } finally {
-        exportBusy.value = false;
     }
 };
 
 onMounted(() => {
   appStore.loadApps();
   window.addEventListener('click', closeContextMenu);
+  window.addEventListener('message', handleGlobalMessage);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('click', closeContextMenu);
+    window.removeEventListener('message', handleGlobalMessage);
 });
 
 // Desktop Long Press Logic
@@ -336,6 +341,8 @@ const desktopLongPressTimer = ref<number | undefined>(undefined);
 
 const handleDesktopTouchStart = (e: TouchEvent) => {
     if (e.touches.length !== 1) return;
+    if ((e.target as HTMLElement).closest('.js-app-icon')) return; // Ignore if touching an app icon
+
     isDesktopLongPress.value = false;
     desktopLongPressTimer.value = window.setTimeout(() => {
         isDesktopLongPress.value = true;
@@ -371,44 +378,55 @@ const handleDesktopTouchEnd = (e: TouchEvent) => {
     <!-- Settings Button Removed -->
     
     <!-- Background / Drop Overlay -->
-    <div v-if="isOverDropZone" 
+    <div v-if="isDragOverFiles && !isDraggingApp" 
          class="absolute inset-0 z-50 bg-blue-500/20 backdrop-blur-sm border-4 border-blue-500 border-dashed m-4 rounded-3xl flex items-center justify-center pointer-events-none">
       <div class="text-4xl font-bold text-blue-600 bg-white/80 px-8 py-4 rounded-full shadow-xl">
         拖拽 ZIP 安装小程序
       </div>
     </div>
 
-    <!-- Desktop Grid -->
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(74px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2 md:gap-6 content-start h-full pb-20 overflow-y-auto custom-scrollbar p-1"
-         @contextmenu.prevent="showDesktopMenu">
-      
-      <!-- Installed Apps -->
-      <div v-for="app in appStore.apps" 
-           :key="app.id"
-           class="transition-transform duration-200">
-          <AppIcon :app="app" 
-                   @open="openApp(app.id)"
-                   @contextmenu.stop="showContextMenu($event, app.id)" />
-      </div>
-
-      <!-- Add App Placeholder (When Empty) -->
-      <div v-if="appStore.apps.length === 0" 
-           class="flex flex-col items-center justify-center gap-2 group cursor-pointer animate-scale-in"
-           @click.stop="showGuideModal = true">
-          <div class="w-[60px] h-[60px] md:w-[74px] md:h-[74px] rounded-2xl bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border-2 border-dashed border-gray-400/50 dark:border-gray-500/50 flex items-center justify-center group-hover:bg-white/60 dark:group-hover:bg-gray-700/60 group-hover:border-blue-500 dark:group-hover:border-blue-400 group-hover:scale-105 transition-all shadow-sm">
-              <svg class="w-8 h-8 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
+    <!-- Desktop Grid Container -->
+    <div class="h-full pb-20 overflow-y-auto custom-scrollbar p-1" @contextmenu.prevent="showDesktopMenu">
+      <draggable 
+          v-model="draggableApps" 
+          item-key="id"
+          class="grid grid-cols-[repeat(auto-fill,minmax(74px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2 md:gap-6 content-start min-h-full"
+          ghost-class="sortable-ghost"
+          drag-class="sortable-drag"
+          :animation="200"
+          :delay="200"
+          :delay-on-touch-only="true"
+          @start="isDraggingApp = true"
+          @end="isDraggingApp = false"
+      >
+        <template #item="{ element: app }">
+          <div class="h-full">
+              <AppIcon :app="app" 
+                       @open="handleAppLaunch(app.id)"
+                       @contextmenu.stop="showContextMenu($event, app.id)" />
           </div>
-          <span class="text-xs font-medium text-gray-600 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 text-shadow-sm text-center px-1 py-0.5 rounded bg-white/30 dark:bg-black/30 backdrop-blur-[2px]">添加应用</span>
-      </div>
-               
-      <!-- Loading Indicator (Full Screen Overlay or inline) -->
-      <!-- Inline Spinner if installing -->
-      <div v-if="appStore.isLoading" class="flex flex-col items-center justify-center w-[100px] h-[100px]">
-         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-         <span class="text-xs text-gray-500 mt-2">Installing...</span>
-      </div>
+        </template>
+
+        <template #footer>
+            <!-- Add App Placeholder (When Empty) -->
+            <div v-if="appStore.apps.length === 0" 
+                 class="flex flex-col items-center justify-center gap-2 group cursor-pointer animate-scale-in"
+                 @click.stop="showGuideModal = true">
+                <div class="w-[60px] h-[60px] md:w-[74px] md:h-[74px] rounded-2xl bg-white/40 dark:bg-gray-700/40 backdrop-blur-sm border-2 border-dashed border-gray-400/50 dark:border-gray-500/50 flex items-center justify-center group-hover:bg-white/60 dark:group-hover:bg-gray-700/60 group-hover:border-blue-500 dark:group-hover:border-blue-400 group-hover:scale-105 transition-all shadow-sm">
+                    <svg class="w-8 h-8 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                </div>
+                <span class="text-xs font-medium text-gray-600 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 text-shadow-sm text-center px-1 py-0.5 rounded bg-white/30 dark:bg-black/30 backdrop-blur-[2px]">添加应用</span>
+            </div>
+                     
+            <!-- Inline Spinner if installing -->
+            <div v-if="appStore.isLoading" class="flex flex-col items-center justify-center w-[100px] h-[100px]">
+               <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+               <span class="text-xs text-gray-500 mt-2">Installing...</span>
+            </div>
+        </template>
+      </draggable>
     </div>
     
     <!-- Global Loading Overlay -->
@@ -428,7 +446,7 @@ const handleDesktopTouchEnd = (e: TouchEvent) => {
                 :z-index="getZIndex(appId)"
                 @close="closeApp(appId)"
                 @focus="bringToFront(appId)"
-                @open-app="openApp" />
+                @open-app="handleAppLaunch" />
       </template>
     </TransitionGroup>
 
@@ -459,9 +477,6 @@ const handleDesktopTouchEnd = (e: TouchEvent) => {
              <div class="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-200" @click.stop="handleInstallApp">安装应用</div>
              <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
              <div class="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-200" @click.stop="showSettingsModal = true; closeContextMenu()">系统设置</div>
-             <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-             <div class="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-200" @click.stop="handleExportAllApps">导出全部应用 (JSON)</div>
-             <div class="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-200" @click.stop="handleExportAllAppsZip">导出全部应用 (ZIP)</div>
          </div>
     </div>
 
@@ -477,16 +492,6 @@ const handleDesktopTouchEnd = (e: TouchEvent) => {
         @close="showRenameModal = false"
         @save="handleDoRename" />
 
-    <!-- Export Modal -->
-    <ExportAppsModal
-        :is-open="showExportModal"
-        :is-busy="exportBusy"
-        :title="exportMode === 'zip' ? '导出全部应用 (ZIP)' : '导出全部应用 (JSON)'"
-        :description="exportMode === 'zip' ? '将导出包含 apps.json 与所有应用 ZIP 包的压缩文件。请填写以下元数据：' : '将导出包含所有应用信息的 JSON 文件。请填写以下元数据：'"
-        :confirm-text="exportMode === 'zip' ? '导出 ZIP' : '导出 JSON'"
-        @close="showExportModal = false"
-        @export="handleDoExport" />
-        
     <UninstallAppModal
         :is-open="showUninstallModal"
         :is-busy="uninstallBusy"
@@ -521,7 +526,7 @@ const handleDesktopTouchEnd = (e: TouchEvent) => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="postcss">
 .window-enter-active,
 .window-leave-active {
   transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -549,5 +554,14 @@ const handleDesktopTouchEnd = (e: TouchEvent) => {
 @keyframes scaleIn {
     from { transform: scale(0.95); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
+}
+
+/* Draggable Styles */
+:deep(.sortable-ghost) {
+    @apply opacity-50 grayscale scale-95;
+}
+
+:deep(.sortable-drag) {
+    @apply scale-105 shadow-xl z-50;
 }
 </style>

@@ -88,10 +88,18 @@ const createOnlineAppZip = async (title: string, url: string, iconContent?: stri
         // Listen for messages from the inner iframe (Online App) and forward to Desktop
         window.addEventListener('message', (e) => {
             if (e.source === iframe.contentWindow) {
-                if (window.parent) {
+                // Forward to parent (if inside iframe in Desktop)
+                if (window.parent && window.parent !== window) {
                     window.parent.postMessage(e.data, '*');
                 }
-            } else if (e.source === window.parent) {
+                // Forward to opener (if popup)
+                if (window.opener && window.opener !== window) {
+                    window.opener.postMessage(e.data, '*');
+                }
+            } else if (
+                (window.parent !== window && e.source === window.parent) || 
+                (window.opener && e.source === window.opener)
+            ) {
                 // Listen for messages from Desktop and forward to inner iframe
                 if (iframe && iframe.contentWindow) {
                     iframe.contentWindow.postMessage(e.data, '*');

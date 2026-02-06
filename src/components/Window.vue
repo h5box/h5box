@@ -331,7 +331,5 @@ onUnmounted(() => {
 </template>>
 
 <style scoped>
-.glass-panel {
-    /* Optional glassmorphism if supported */
-}
+
 </style>

@@ -11,7 +11,8 @@ export const handleBridgeMessage = async (
   event: MessageEvent, 
   sourceAppId: string, 
   sourceWindow: WindowProxy,
-  callbacks?: { onOpenApp?: (appId: string) => void }
+  callbacks?: { onOpenApp?: (appId: string) => void },
+  options?: { isPopup?: boolean }
 ): Promise<{ type: string; success: boolean } | void> => {
   const { data } = event;
   // Basic validation
@@ -24,7 +25,7 @@ export const handleBridgeMessage = async (
     let result;
     switch (type) {
       case 'system.requestPermissions':
-        result = await permissionService.requestPermissions(sourceAppId, payload.permissions || []);
+        result = await permissionService.requestPermissions(sourceAppId, payload.permissions || [], { popup: options?.isPopup });
         break;
       case 'system.installApp':
         await checkPermission(sourceAppId, 'system.installApp');

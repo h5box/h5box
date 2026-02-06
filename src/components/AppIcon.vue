@@ -64,7 +64,7 @@ const longPressTimer = ref<number | undefined>(undefined);
 
 const handleTouchStart = (e: TouchEvent) => {
   if (e.touches.length !== 1) return;
-  e.stopPropagation(); // Prevent triggering desktop long press
+  // e.stopPropagation(); // Removed to allow vuedraggable to detect touch
   isLongPress.value = false;
   longPressTimer.value = window.setTimeout(() => {
     isLongPress.value = true;
@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
 <template>
   <div
        ref="iconRef"
-       class="group relative flex flex-col items-center p-1 md:p-2 cursor-pointer hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-all w-full"
+       class="js-app-icon group relative flex flex-col items-center p-1 md:p-2 cursor-pointer hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-all w-full"
        @click="$emit('open')"
        @contextmenu.prevent="$emit('contextmenu', $event)"
        @touchstart="handleTouchStart"

@@ -52,6 +52,14 @@ export default defineConfig(({ command }) => ({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        permission: path.resolve(__dirname, 'permission.html')
+      }
+    }
+  },
   server: {
     host: true,
     port: 3000,

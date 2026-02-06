@@ -4,7 +4,9 @@
 
 ## 1. 交互机制
 
-应用运行在沙盒环境（iframe）中，与宿主系统（OS）的通信通过 `window.parent.postMessage` 实现。
+应用通常运行在沙盒环境（iframe）中，与宿主系统（OS）的通信通过 `window.parent.postMessage` 实现。
+
+> **注意**：如果应用被配置为在“弹出窗口”中运行，或者用户选择在新窗口中打开应用，此时应用与系统的通信通道为 `window.opener`。为了保证兼容性，建议应用同时尝试向 `window.parent` 和 `window.opener` 发送消息。
 
 ### 1.1 请求格式 (Request)
 
@@ -206,11 +208,21 @@ export class SystemBridge {
       const requestId = crypto.randomUUID();
       this.pendingRequests.set(requestId, { resolve, reject });
       
-      window.parent.postMessage({
+      const message = {
         type,
         payload,
         requestId
-      }, '*');
+      };
+
+      // 尝试向父窗口发送 (iframe 模式)
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(message, '*');
+      }
+
+      // 尝试向打开者窗口发送 (弹出窗口模式)
+      if (window.opener && window.opener !== window) {
+        window.opener.postMessage(message, '*');
+      }
       
       // 超时处理 (可选)
       setTimeout(() => {
