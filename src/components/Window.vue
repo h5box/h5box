@@ -18,6 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const appStore = useAppStore();
+const APP_POPUP_SIZE_RATIO = 0.65;
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 const x = ref(100);
 const y = ref(100);
@@ -218,11 +219,12 @@ const handleClose = () => {
 };
 
 const openInPopup = () => {
-    // Calculate center position
-    const w = 800;
-    const h = 600;
-    const left = (window.screen.width - w) / 2;
-    const top = (window.screen.height - h) / 2;
+    const screenW = window.screen.availWidth;
+    const screenH = window.screen.availHeight;
+    const w = Math.floor(screenW * APP_POPUP_SIZE_RATIO);
+    const h = Math.floor(screenH * APP_POPUP_SIZE_RATIO);
+    const left = (screenW - w) / 2;
+    const top = (screenH - h) / 2;
     
     window.open(
         appUrl.value, 

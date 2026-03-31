@@ -17,7 +17,7 @@ import SettingsModal from './SettingsModal.vue';
 import GuideModal from './GuideModal.vue';
 import AppUpdateModal from './AppUpdateModal.vue';
 
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 
 const appStore = useAppStore();
 const draggableApps = computed({
@@ -81,6 +81,7 @@ useDropZone(dropZoneRef, {
 const openWindows = ref<string[]>([]);
 const windowZIndices = ref<Record<string, number>>({});
 const popupWindows = new Map<Window, string>(); // Map<WindowProxy, appId>
+const APP_POPUP_SIZE_RATIO = 0.65;
 let maxZIndex = 100;
 
 const openApp = async (id: string) => {
@@ -94,12 +95,12 @@ const openApp = async (id: string) => {
 
 const openAppInPopup = (appId: string) => {
      // Popup window instead of new tab
-     // Auto-size logic: 85% of screen width/height, centered
+     // Auto-size logic: use screen ratio, centered
      const screenW = window.screen.availWidth;
      const screenH = window.screen.availHeight;
      
-     const width = Math.floor(screenW * 0.65);
-     const height = Math.floor(screenH * 0.65);
+     const width = Math.floor(screenW * APP_POPUP_SIZE_RATIO);
+     const height = Math.floor(screenH * APP_POPUP_SIZE_RATIO);
      const left = (screenW - width) / 2;
      const top = (screenH - height) / 2;
      
