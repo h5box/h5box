@@ -78,16 +78,104 @@ const createOnlineAppZip = async (title: string, url: string, iconContent?: stri
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
         iframe { width: 100%; height: 100%; border: none; }
+        .fallback {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            z-index: 10;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+        .fallback-card {
+            width: min(560px, 100%);
+            background: #111827;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 18px;
+            line-height: 1.6;
+        }
+        .fallback a {
+            display: inline-block;
+            margin-top: 12px;
+            color: #93c5fd;
+        }
     </style>
 </head>
 <body>
     <iframe id="app-frame" src="${url}" allow="camera; microphone; geolocation; fullscreen; clipboard-read; clipboard-write"></iframe>
+    <div id="fallback" class="fallback">
+        <div class="fallback-card">
+            <strong>已切换为外部打开</strong>
+            <div id="fallback-reason" style="margin-top:8px;">目标网站可能禁止被 iframe 内嵌。</div>
+            <a id="fallback-link" href="${url}" target="_blank" rel="noopener noreferrer">如果没有自动打开，请点击这里</a>
+        </div>
+    </div>
     <script>
+        const TARGET_URL = ${JSON.stringify(url)};
         const iframe = document.getElementById('app-frame');
+        const fallback = document.getElementById('fallback');
+        const fallbackReason = document.getElementById('fallback-reason');
+        const fallbackLink = document.getElementById('fallback-link');
+        let bridgeReady = false;
+        let fallbackOpened = false;
+        
+        const openExternalWindow = () => {
+            const screenW = window.screen && window.screen.availWidth ? window.screen.availWidth : window.innerWidth;
+            const screenH = window.screen && window.screen.availHeight ? window.screen.availHeight : window.innerHeight;
+            const width = Math.floor(screenW * 0.65);
+            const height = Math.floor(screenH * 0.65);
+            const left = Math.max(0, Math.floor((screenW - width) / 2));
+            const top = Math.max(0, Math.floor((screenH - height) / 2));
+            const popup = window.open(
+                TARGET_URL,
+                '_blank',
+                'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
+            );
+            if (!popup) {
+                window.location.href = TARGET_URL;
+            }
+        };
+
+        const triggerFallback = (reason) => {
+            if (fallbackOpened) return;
+            fallbackOpened = true;
+            if (fallbackReason) fallbackReason.textContent = reason;
+            if (fallbackLink) fallbackLink.href = TARGET_URL;
+            if (fallback) fallback.style.display = 'flex';
+            openExternalWindow();
+        };
+
+        const checkFrameBlocked = () => {
+            if (bridgeReady || fallbackOpened || !iframe) return;
+            try {
+                const frameWindow = iframe.contentWindow;
+                const href = frameWindow && frameWindow.location ? frameWindow.location.href : '';
+                if (!href || href === 'about:blank' || href === 'about:srcdoc') {
+                    triggerFallback('目标网站禁止被内嵌，已自动改为外部窗口打开。');
+                    return;
+                }
+                bridgeReady = true;
+            } catch (e) {
+                // Cross-origin iframe loaded successfully; keep embedded mode.
+                bridgeReady = true;
+            }
+        };
+
+        if (iframe) {
+            iframe.addEventListener('load', () => {
+                setTimeout(checkFrameBlocked, 120);
+            });
+            setTimeout(checkFrameBlocked, 2500);
+        }
         
         // Listen for messages from the inner iframe (Online App) and forward to Desktop
         window.addEventListener('message', (e) => {
-            if (e.source === iframe.contentWindow) {
+            if (iframe && e.source === iframe.contentWindow) {
                 // Forward to parent (if inside iframe in Desktop)
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage(e.data, '*');

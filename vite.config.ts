@@ -19,7 +19,7 @@ export default defineConfig(({ command }) => ({
         navigateFallback: 'index.html',
         suppressWarnings: true,
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-icon.svg'],
+      includeAssets: ['pwa-icon.png', 'pwa-icon.svg'],
       manifest: {
         name: 'H5Box',
         short_name: 'H5Box',
@@ -27,15 +27,9 @@ export default defineConfig(({ command }) => ({
         theme_color: '#ffffff',
         icons: [
           {
-            src: 'pwa-icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml'
-          },
-          {
-            src: 'pwa-icon.svg',
+            src: 'pwa-icon.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
+            type: 'image/png'
           },
           {
             src: 'pwa-icon.svg',
