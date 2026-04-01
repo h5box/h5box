@@ -1,7 +1,13 @@
 /// <reference lib="webworker" />
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import JSZip from 'jszip';
+import {
+  APP_FILE_STORE_NAME,
+  APP_STORE_NAME,
+  DB_NAME,
+  DB_VERSION
+} from './constants/storage';
+import { getMimeType } from './utils/mime';
 
 declare const self: ServiceWorkerGlobalScope;
 // @ts-ignore
@@ -31,9 +37,6 @@ registerRoute(
 // -------------------------------------------------------------------------
 // Custom Logic for HTML App Launcher
 // -------------------------------------------------------------------------
-
-const DB_NAME = 'html-app-launcher';
-const DB_VERSION = 2;
 
 self.addEventListener('install', () => {
   console.log('SW: Installing...');
@@ -103,53 +106,23 @@ async function handleAppRequest(appId: string, filePath: string) {
       });
     }
 
-    const zip = await JSZip.loadAsync(appData.zipBlob);
-    
-    // Basic file lookup
-    let targetPath = filePath;
-    if (appData.rootPrefix) {
-        targetPath = appData.rootPrefix + filePath;
-    }
-    
-    let file = zip.file(targetPath);
-    
-    // Fallback logic
-    if (!file) {
-       // 1. Try adding index.html if looking for a folder
-       if (targetPath.endsWith('/') || targetPath === '' || !targetPath.includes('.')) {
-          const tryIndex = targetPath + (targetPath.endsWith('/') ? '' : '/') + 'index.html';
-          file = zip.file(tryIndex);
-       }
-       
-       // 2. Try without rootPrefix (if it was somehow incorrect)
-       if (!file && targetPath !== filePath) {
-            file = zip.file(filePath);
-       }
-       
-       // 3. Try filePath + index.html without rootPrefix
-       if (!file && (filePath.endsWith('/') || !filePath.includes('.'))) {
-           file = zip.file(filePath + (filePath.endsWith('/') ? '' : '/') + 'index.html');
-       }
-    }
+    const resolved = await resolveAppFile(appId, filePath);
 
-    if (!file) {
-      console.error(`File ${targetPath} (orig: ${filePath}) not found in app ${appId}`);
-      // Check if we can list files to help debugging
-      const files = Object.keys(zip.files).slice(0, 10).join('<br>');
+    if (!resolved) {
+      console.error(`File ${filePath} not found in app ${appId}`);
+      const files = (await listAppFiles(appId)).slice(0, 10).join('<br>');
       return new Response(createErrorPage('File not found', `
         <p>Could not find file: <strong>${filePath}</strong></p>
-        <p>Target path: <strong>${targetPath}</strong></p>
-        <p>Root Prefix: <strong>${appData.rootPrefix || '(none)'}</strong></p>
         <hr>
-        <p>Files in ZIP (first 10):<br>${files}</p>
+        <p>Indexed files (first 10):<br>${files}</p>
       `), { 
           status: 404, 
           headers: { 'Content-Type': 'text/html' }
       });
     }
 
-    const content = await file.async('blob');
-    const mimeType = getMimeType(filePath);
+    const { content, path: resolvedPath, contentType } = resolved;
+    const mimeType = contentType || getMimeType(resolvedPath);
     
     console.log(`SW: Serving ${filePath} as ${mimeType} (Size: ${content.size})`);
 
@@ -224,12 +197,12 @@ function getAppFromDB(id: string) {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains('apps')) {
+      if (!db.objectStoreNames.contains(APP_STORE_NAME)) {
           resolve(null);
           return;
       }
-      const tx = db.transaction('apps', 'readonly');
-      const store = tx.objectStore('apps');
+      const tx = db.transaction(APP_STORE_NAME, 'readonly');
+      const store = tx.objectStore(APP_STORE_NAME);
       const getReq = store.get(id);
       getReq.onsuccess = () => {
         if (getReq.result) {
@@ -243,32 +216,68 @@ function getAppFromDB(id: string) {
   });
 }
 
-function getMimeType(filename: string) {
-  const parts = filename.split('.');
-  const ext = parts.length > 1 ? parts.pop()?.toLowerCase() : '';
-  const map: Record<string, string> = {
-    'html': 'text/html',
-    'htm': 'text/html',
-    'css': 'text/css',
-    'js': 'application/javascript',
-    'json': 'application/json',
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'gif': 'image/gif',
-    'svg': 'image/svg+xml',
-    'ico': 'image/x-icon',
-    'txt': 'text/plain',
-    'mp3': 'audio/mpeg',
-    'mp4': 'video/mp4',
-    'woff': 'font/woff',
-    'woff2': 'font/woff2',
-    'ttf': 'font/ttf',
-    'eot': 'application/vnd.ms-fontobject',
-    'otf': 'font/otf',
-    'wasm': 'application/wasm'
-  };
-  return (ext && map[ext]) || 'application/octet-stream';
+function getAppFile(appId: string, path: string) {
+  return new Promise<any>((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(APP_FILE_STORE_NAME)) {
+        resolve(null);
+        return;
+      }
+      const tx = db.transaction(APP_FILE_STORE_NAME, 'readonly');
+      const store = tx.objectStore(APP_FILE_STORE_NAME);
+      const getReq = store.get(`${appId}:${path}`);
+      getReq.onsuccess = () => resolve(getReq.result || null);
+      getReq.onerror = () => reject(getReq.error);
+    };
+  });
+}
+
+async function resolveAppFile(appId: string, filePath: string) {
+  const candidates = new Set<string>();
+  const cleanedPath = filePath.replace(/^\/+/, '');
+  candidates.add(cleanedPath);
+
+  if (cleanedPath === '' || cleanedPath.endsWith('/') || !cleanedPath.includes('.')) {
+    candidates.add(`${cleanedPath}${cleanedPath.endsWith('/') || cleanedPath === '' ? '' : '/'}index.html`);
+  }
+
+  for (const candidate of candidates) {
+    const file = await getAppFile(appId, candidate);
+    if (file) {
+      return file;
+    }
+  }
+
+  return null;
+}
+
+function listAppFiles(appId: string) {
+  return new Promise<string[]>((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(APP_FILE_STORE_NAME)) {
+        resolve([]);
+        return;
+      }
+      const tx = db.transaction(APP_FILE_STORE_NAME, 'readonly');
+      const store = tx.objectStore(APP_FILE_STORE_NAME);
+      const index = store.index('by-appId');
+      const getReq = index.getAllKeys(appId);
+      getReq.onsuccess = () => {
+        resolve(
+          (getReq.result || []).map((key: IDBValidKey) =>
+            String(key).slice(`${appId}:`.length)
+          )
+        );
+      };
+      getReq.onerror = () => reject(getReq.error);
+    };
+  });
 }
 
 function getSecurityShim(appId: string) {

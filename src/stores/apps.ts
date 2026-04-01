@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { toRaw } from 'vue';
 import { db, type AppMetadata } from '../db';
-import { installApp } from '../services/installer';
+import { commitInstall, prepareInstall } from '../services/appInstall';
+import { parseAppPackage } from '../services/installer';
 import JSZip from 'jszip';
 
 export const useAppStore = defineStore('apps', {
@@ -145,150 +146,54 @@ export const useAppStore = defineStore('apps', {
         }
       }
     },
-    async installFromBridge(file: File, overrides: { appIdentifier?: string; title?: string; icon?: string; version?: string }, source: string) {
-        // Wrapper around installSingleFromFile to support overrides from Bridge
-        // We can't easily change installSingleFromFile signature without checking all calls.
-        // So we implement a specific version here, or we duplicate logic.
-        // Actually, let's just copy the logic and adapt it, it's safer than hacking the other method.
-        // Or we can extract the common logic.
-        
-        // 1. Parse metadata
-        const app = await installApp(file, {
-            persist: 'none',
-            metadataOverrides: {
-                installSource: source,
-                ...overrides
-            }
-        });
-
-        // Ensure apps are loaded
-        if (this.apps.length === 0) {
-            await this.loadApps();
-        }
-
-        // 2. Check for exact duplicate (same file hash)
-        const existingById = this.apps.find(a => a.id === app.id);
-        if (existingById) {
-            // Even if ID matches, if we provided overrides, maybe we want to update metadata?
-            // But for now, let's assume if binary is same, it's same app.
-            console.log('App already installed with same ID.');
-            return existingById;
-        }
-
-        // 3. Check for Version Update (Same Package Name, Different ID)
-        if (app.appIdentifier) {
-            const existingByPkg = this.apps.find(a => a.appIdentifier === app.appIdentifier);
-            if (existingByPkg) {
-                // Check if version is same
-                // if (existingByPkg.version === app.version) {
-                //     console.log(`App ${app.appIdentifier} already installed with same version ${app.version}. Skipping.`);
-                //     return existingByPkg;
-                // }
-
-                // Confirm update
-                const confirmed = await new Promise<boolean>((resolve) => {
-                    this.updateConfirmation = {
-                        isOpen: true,
-                        newApp: app,
-                        oldApp: existingByPkg,
-                        resolve
-                    };
-                });
-
-                if (!confirmed) {
-                    this.updateConfirmation = null;
-                    throw new Error('User cancelled installation');
-                }
-                
-                this.updateConfirmation = null;
-                
-                // Remove old app
-                await this.uninstallApp(existingByPkg.id);
-                
-                // Preserve order from old app
-                app.order = existingByPkg.order;
-            }
-        }
-
-        // 4. Save to DB
-        if (app.order === undefined) {
-             const maxOrder = this.apps.reduce((max, a) => Math.max(max, a.order || 0), 0);
-             app.order = maxOrder + 1;
-        }
-        
-        // Mark as new
-        app.isNew = true;
-
-        await db.addApp(app);
-        this.apps.push(app);
-        
-        return app;
+    async ensureAppsLoaded() {
+      if (this.apps.length === 0) {
+        await this.loadApps();
+      }
     },
-    async installSingleFromFile(file: File, source: string = 'Local File') {
-      // 1. Parse metadata without saving to DB yet (persist: 'none')
-      const app = await installApp(file, {
-          persist: 'none',
-          metadataOverrides: {
-              installSource: source
-          }
+    async confirmAppReplacement(newApp: AppMetadata, oldApp: AppMetadata) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        this.updateConfirmation = {
+          isOpen: true,
+          newApp,
+          oldApp,
+          resolve
+        };
       });
 
-      // Ensure apps are loaded to check for duplicates
-      if (this.apps.length === 0) {
-          await this.loadApps();
+      this.updateConfirmation = null;
+      return confirmed;
+    },
+    async finalizeInstall(prepared: Awaited<ReturnType<typeof prepareInstall>>) {
+      await this.ensureAppsLoaded();
+      const installedApp = await commitInstall(prepared, {
+        existingApps: this.apps,
+        confirmReplace: (newApp, oldApp) => this.confirmAppReplacement(newApp, oldApp),
+        onReplace: async (oldApp) => {
+          await this.uninstallApp(oldApp.id);
+        }
+      });
+
+      const existingIndex = this.apps.findIndex(app => app.id === installedApp.id);
+      if (existingIndex === -1) {
+        this.apps.push(installedApp);
+      } else {
+        this.apps[existingIndex] = installedApp;
       }
 
-      // 2. Check for exact duplicate (same file hash)
-      const existingById = this.apps.find(a => a.id === app.id);
-      if (existingById) {
-          console.log('App already installed with same ID (same file hash).');
-          return;
-      }
-
-      // 3. Check for Version Update (Same Package Name, Different ID)
-      if (app.appIdentifier) {
-          const existingByPkg = this.apps.find(a => a.appIdentifier === app.appIdentifier);
-          if (existingByPkg) {
-              // Confirm update
-              // if (existingByPkg.version === app.version) {
-              //    console.log(`App ${app.appIdentifier} already installed with same version ${app.version}. Skipping.`);
-              //    return;
-              // }
-              const confirmed = await new Promise<boolean>((resolve) => {
-                  this.updateConfirmation = {
-                      isOpen: true,
-                      newApp: app,
-                      oldApp: existingByPkg,
-                      resolve
-                  };
-              });
-
-              if (!confirmed) {
-                  this.updateConfirmation = null;
-                  throw new Error('User cancelled installation');
-              }
-              
-              this.updateConfirmation = null;
-              
-              // Remove old app
-              await this.uninstallApp(existingByPkg.id);
-              
-              // Preserve order from old app
-              app.order = existingByPkg.order;
-          }
-      }
-
-      // 4. Save to DB
-      if (app.order === undefined) {
-           const maxOrder = this.apps.reduce((max, a) => Math.max(max, a.order || 0), 0);
-           app.order = maxOrder + 1;
-      }
-      
-      // Mark as new
-      app.isNew = true;
-
-      await db.addApp(app);
-      this.apps.push(app);
+      return installedApp;
+    },
+    async installFromBridge(file: File, overrides: { appIdentifier?: string; title?: string; icon?: string; version?: string }, source: string) {
+        const prepared = await prepareInstall(file, { source, overrides });
+        return this.finalizeInstall(prepared);
+    },
+    async installSingleFromFile(
+      file: File,
+      source: string = 'Local File',
+      overrides?: { appIdentifier?: string; title?: string; icon?: string; version?: string }
+    ) {
+      const prepared = await prepareInstall(file, { source, overrides });
+      return this.finalizeInstall(prepared);
     },
     async restoreFromExportZip(file: File): Promise<boolean> {
       let zip: JSZip;
@@ -337,10 +242,9 @@ export const useAppStore = defineStore('apps', {
         const order = typeof raw.order === 'number' && Number.isFinite(raw.order) ? raw.order : nextOrder++;
 
         try {
-          await installApp(zipFile, {
+          const prepared = await parseAppPackage(zipFile, {
             id,
             installTime,
-            persist: 'put',
             metadataOverrides: {
               title: normalizeString(raw.title) || id,
               description: normalizeString(raw.description),
@@ -355,6 +259,7 @@ export const useAppStore = defineStore('apps', {
               order
             }
           });
+          await db.saveAppBundle(prepared.app, prepared.files);
           restoredCount++;
         } catch {
           continue;
