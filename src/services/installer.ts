@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
-import { db, type AppLaunchMode, type AppMetadata } from '../db';
+import type { AppFileRecord, AppLaunchMode, AppMetadata } from '../db';
+import { getMimeType } from '../utils/mime';
 
 export async function calculateFileHash(file: Blob): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -69,16 +70,17 @@ function getBrowserUser(): string {
   return id;
 }
 
-export async function installApp(
+type ParseAppOptions = {
+  id?: string;
+  installTime?: number;
+  installSource?: string;
+  metadataOverrides?: Partial<Omit<AppMetadata, 'id' | 'zipBlob' | 'installTime' | 'rootPrefix'>>;
+};
+
+export async function parseAppPackage(
   file: File,
-  options?: {
-    id?: string;
-    installTime?: number;
-    persist?: 'add' | 'put' | 'none';
-    installSource?: string;
-    metadataOverrides?: Partial<Omit<AppMetadata, 'id' | 'zipBlob' | 'installTime' | 'rootPrefix'>>;
-  }
-): Promise<AppMetadata> {
+  options?: ParseAppOptions
+): Promise<{ app: AppMetadata; files: AppFileRecord[] }> {
   let zip: JSZip;
   try {
       zip = await JSZip.loadAsync(file);
@@ -206,14 +208,42 @@ export async function installApp(
     ...overrides
   };
 
-  const persist = options?.persist || 'add';
-  if (persist === 'put') {
-    await db.updateApp(merged);
-  } else if (persist === 'add') {
-    await db.addApp(merged);
-  }
+  const files = await extractAppFiles(zip, id, rootPrefix);
 
-  return merged;
+  return {
+    app: merged,
+    files
+  };
+}
+
+async function extractAppFiles(zip: JSZip, appId: string, rootPrefix: string) {
+  const fileEntries = Object.values(zip.files).filter(fileEntry => {
+    if (fileEntry.dir) return false;
+    return rootPrefix ? fileEntry.name.startsWith(rootPrefix) : true;
+  });
+
+  const extractedFiles = await Promise.all(
+    fileEntries.map(async fileEntry => {
+      const relativePath = normalizeAppFilePath(fileEntry.name, rootPrefix);
+      const content = await fileEntry.async('blob');
+      return {
+        key: `${appId}:${relativePath}`,
+        appId,
+        path: relativePath,
+        content,
+        contentType: getMimeType(relativePath)
+      } satisfies AppFileRecord;
+    })
+  );
+
+  return extractedFiles.filter(fileEntry => !!fileEntry.path);
+}
+
+function normalizeAppFilePath(path: string, rootPrefix: string) {
+  const trimmed = rootPrefix && path.startsWith(rootPrefix)
+    ? path.slice(rootPrefix.length)
+    : path;
+  return trimmed.replace(/^\/+/, '');
 }
 
 function blobToBase64(blob: Blob): Promise<string> {

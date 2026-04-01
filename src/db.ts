@@ -1,4 +1,12 @@
-import { openDB, type DBSchema } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import {
+  APP_FILE_STORE_NAME,
+  APP_STORE_NAME,
+  DB_NAME,
+  DB_VERSION,
+  PERMISSION_STORE_NAME,
+  WINDOW_STATE_STORE_NAME
+} from './constants/storage';
 
 export type AppLaunchMode = 'embedded' | 'external';
 
@@ -22,74 +30,127 @@ export interface AppMetadata {
   launchMode?: AppLaunchMode;
 }
 
+export interface AppFileRecord {
+  key: string;
+  appId: string;
+  path: string;
+  content: Blob;
+  contentType: string;
+}
+
 interface AppDB extends DBSchema {
-  apps: {
+  [APP_STORE_NAME]: {
     key: string;
     value: AppMetadata;
   };
-  windowStates: {
+  [APP_FILE_STORE_NAME]: {
+    key: string;
+    value: AppFileRecord;
+    indexes: {
+      'by-appId': string;
+    };
+  };
+  [WINDOW_STATE_STORE_NAME]: {
     key: string;
     value: { x: number; y: number; width: number; height: number; key: string };
   };
-  permissions: {
+  [PERMISSION_STORE_NAME]: {
     key: string; // appId
     value: { appId: string; permissions: string[] };
   };
 }
 
-export const DB_NAME = 'html-app-launcher';
-export const DB_VERSION = 2;
-
 const dbPromise = openDB<AppDB>(DB_NAME, DB_VERSION, {
   upgrade(db) {
-    if (!db.objectStoreNames.contains('apps')) {
-      db.createObjectStore('apps', { keyPath: 'id' });
+    if (!db.objectStoreNames.contains(APP_STORE_NAME)) {
+      db.createObjectStore(APP_STORE_NAME, { keyPath: 'id' });
     }
-    if (!db.objectStoreNames.contains('windowStates')) {
-      db.createObjectStore('windowStates', { keyPath: 'key' }); // key is appId
+    if (!db.objectStoreNames.contains(APP_FILE_STORE_NAME)) {
+      const appFilesStore = db.createObjectStore(APP_FILE_STORE_NAME, { keyPath: 'key' });
+      appFilesStore.createIndex('by-appId', 'appId');
     }
-    if (!db.objectStoreNames.contains('permissions')) {
-      db.createObjectStore('permissions', { keyPath: 'appId' });
+    if (!db.objectStoreNames.contains(WINDOW_STATE_STORE_NAME)) {
+      db.createObjectStore(WINDOW_STATE_STORE_NAME, { keyPath: 'key' });
+    }
+    if (!db.objectStoreNames.contains(PERMISSION_STORE_NAME)) {
+      db.createObjectStore(PERMISSION_STORE_NAME, { keyPath: 'appId' });
     }
   },
+  blocked() {
+    console.warn('Database upgrade is blocked by another open tab.');
+  }
 });
+
+async function deleteAppFilesInTransaction(
+  tx: any,
+  appId: string
+) {
+  const index = tx.objectStore(APP_FILE_STORE_NAME).index('by-appId');
+  let cursor = await index.openCursor(appId);
+  while (cursor) {
+    await cursor.delete();
+    cursor = await cursor.continue();
+  }
+}
+
+async function saveAppBundleInDatabase(
+  database: IDBPDatabase<AppDB>,
+  app: AppMetadata,
+  files: AppFileRecord[]
+) {
+  const tx = database.transaction([APP_STORE_NAME, APP_FILE_STORE_NAME], 'readwrite');
+  await tx.objectStore(APP_STORE_NAME).put(app);
+  await deleteAppFilesInTransaction(tx, app.id);
+  for (const file of files) {
+    await tx.objectStore(APP_FILE_STORE_NAME).put(file);
+  }
+  await tx.done;
+}
+
+export { DB_NAME, DB_VERSION } from './constants/storage';
 
 export const db = {
   async addApp(app: AppMetadata) {
-    return (await dbPromise).put('apps', app);
+    return (await dbPromise).put(APP_STORE_NAME, app);
   },
   async getApp(id: string) {
-    return (await dbPromise).get('apps', id);
+    return (await dbPromise).get(APP_STORE_NAME, id);
   },
   async getAllApps() {
-    return (await dbPromise).getAll('apps');
+    return (await dbPromise).getAll(APP_STORE_NAME);
+  },
+  async saveAppBundle(app: AppMetadata, files: AppFileRecord[]) {
+    const database = await dbPromise;
+    return saveAppBundleInDatabase(database, app, files);
+  },
+  async getAppFile(appId: string, path: string) {
+    return (await dbPromise).get(APP_FILE_STORE_NAME, `${appId}:${path}`);
+  },
+  async listAppFiles(appId: string) {
+    return (await dbPromise).getAllFromIndex(APP_FILE_STORE_NAME, 'by-appId', appId);
   },
   async deleteApp(id: string) {
-    const tx = (await dbPromise).transaction(['apps', 'permissions'], 'readwrite');
-    await tx.objectStore('apps').delete(id);
-    await tx.objectStore('permissions').delete(id);
+    const database = await dbPromise;
+    const tx = database.transaction([APP_STORE_NAME, APP_FILE_STORE_NAME, PERMISSION_STORE_NAME], 'readwrite');
+    await tx.objectStore(APP_STORE_NAME).delete(id);
+    await deleteAppFilesInTransaction(tx, id);
+    await tx.objectStore(PERMISSION_STORE_NAME).delete(id);
     return tx.done;
   },
   async saveWindowState(appId: string, state: { x: number; y: number; width: number; height: number }) {
-    // When using keyPath, the value must contain the key.
-    // However, we previously defined store with { keyPath: 'key' }.
-    // So we must include 'key' in the value.
-    // Also, if keyPath is set, the second argument to put() (key) should NOT be used or is ignored/error?
-    // Actually, idb wrapper might handle it, but raw IDB throws DataError if key provided differs from keyPath.
-    // Best practice: include key in object.
-    return (await dbPromise).put('windowStates', { ...state, key: appId });
+    return (await dbPromise).put(WINDOW_STATE_STORE_NAME, { ...state, key: appId });
   },
   async getWindowState(appId: string) {
-    return (await dbPromise).get('windowStates', appId);
+    return (await dbPromise).get(WINDOW_STATE_STORE_NAME, appId);
   },
   async updateApp(app: AppMetadata) {
-    return (await dbPromise).put('apps', app);
+    return (await dbPromise).put(APP_STORE_NAME, app);
   },
   async getPermissions(appId: string) {
-    const record = await (await dbPromise).get('permissions', appId);
+    const record = await (await dbPromise).get(PERMISSION_STORE_NAME, appId);
     return record ? record.permissions : [];
   },
   async setPermissions(appId: string, permissions: string[]) {
-    return (await dbPromise).put('permissions', { appId, permissions });
+    return (await dbPromise).put(PERMISSION_STORE_NAME, { appId, permissions });
   }
 };
