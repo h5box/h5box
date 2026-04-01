@@ -6,7 +6,7 @@ import draggable from 'vuedraggable';
 import { useToast } from '../composables/useToast';
 import { useSettings } from '../composables/useSettings';
 import { handleBridgeMessage } from '../services/bridge';
-import { DB_VERSION } from '../db';
+import { DB_VERSION, type AppMetadata } from '../db';
 import AppIcon from './AppIcon.vue';
 import Window from './Window.vue';
 import EditAppModal from './EditAppModal.vue';
@@ -84,6 +84,28 @@ const popupWindows = new Map<Window, string>(); // Map<WindowProxy, appId>
 const APP_POPUP_SIZE_RATIO = 0.65;
 let maxZIndex = 100;
 
+const getPopupFeatures = () => {
+  const screenW = window.screen.availWidth;
+  const screenH = window.screen.availHeight;
+  const width = Math.floor(screenW * APP_POPUP_SIZE_RATIO);
+  const height = Math.floor(screenH * APP_POPUP_SIZE_RATIO);
+  const left = (screenW - width) / 2;
+  const top = (screenH - height) / 2;
+
+  return {
+    width,
+    height,
+    left,
+    top,
+    features: `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
+  };
+};
+
+const getExternalLaunchUrl = (app: AppMetadata) => {
+  if (app.launchMode !== 'external') return '';
+  return app.officialWebsite?.trim() || '';
+};
+
 const openApp = async (id: string) => {
   if (!openWindows.value.includes(id)) {
     openWindows.value.push(id);
@@ -94,31 +116,29 @@ const openApp = async (id: string) => {
 };
 
 const openAppInPopup = (appId: string) => {
-     // Popup window instead of new tab
-     // Auto-size logic: use screen ratio, centered
-     const screenW = window.screen.availWidth;
-     const screenH = window.screen.availHeight;
-     
-     const width = Math.floor(screenW * APP_POPUP_SIZE_RATIO);
-     const height = Math.floor(screenH * APP_POPUP_SIZE_RATIO);
-     const left = (screenW - width) / 2;
-     const top = (screenH - height) / 2;
-     
-     // CHANGED: Use relative path for subdirectories
-     const win = window.open(`./app/${appId}/index.html`, '_blank', `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`);
-     
-     if (win) {
+     const app = appStore.apps.find(a => a.id === appId);
+     if (!app) return;
+
+     const externalUrl = getExternalLaunchUrl(app);
+     const { features } = getPopupFeatures();
+     const targetUrl = externalUrl || `./app/${appId}/index.html`;
+     const win = window.open(targetUrl, '_blank', features);
+
+     if (!win) {
+         addToast('浏览器拦截了弹窗，请允许弹窗后重试', 'warning');
+         return;
+     }
+
+     if (!externalUrl) {
          popupWindows.set(win, appId);
-         
-         // Optional: Poll to clean up closed windows from map?
-         // For now, we just keep them. Memory leak is minimal (Window reference).
-         // We can use a WeakMap if Window was the key, but we need to iterate or lookup.
-         // Actually Map<Window, string> is fine.
      }
 };
 
 const handleAppLaunch = async (id: string) => {
-    if (openMethod.value === 'popup') {
+    const app = appStore.apps.find(a => a.id === id);
+    const shouldOpenExternally = !!app && !!getExternalLaunchUrl(app);
+
+    if (shouldOpenExternally || openMethod.value === 'popup') {
         openAppInPopup(id);
         await appStore.clearNewFlag(id);
     } else {

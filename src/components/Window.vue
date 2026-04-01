@@ -36,6 +36,11 @@ const appUrl = computed(() => {
   return `./app/${props.app.id}/index.html`;
 });
 
+const externalLaunchUrl = computed(() => {
+  if (props.app.launchMode !== 'external') return '';
+  return props.app.officialWebsite?.trim() || '';
+});
+
 const windowStyle = computed(() => {
   if (isMaximized.value) {
     return {
@@ -227,7 +232,7 @@ const openInPopup = () => {
     const top = (screenH - h) / 2;
     
     window.open(
-        appUrl.value, 
+        externalLaunchUrl.value || appUrl.value,
         '_blank', 
         `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
     );

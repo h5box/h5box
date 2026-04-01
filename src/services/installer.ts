@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { db, type AppMetadata } from '../db';
+import { db, type AppLaunchMode, type AppMetadata } from '../db';
 
 export async function calculateFileHash(file: Blob): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -113,6 +113,8 @@ export async function installApp(
   const author = doc.querySelector('meta[name="author"]')?.getAttribute('content') || 'Unknown';
   const keywords = doc.querySelector('meta[name="keywords"]')?.getAttribute('content')?.split(',').map(k => k.trim()).filter(Boolean) || [];
   const version = doc.querySelector('meta[name="version"]')?.getAttribute('content') || '1.0.0';
+  const launchModeMeta = doc.querySelector('meta[name="app-launch-mode"]')?.getAttribute('content');
+  const launchMode: AppLaunchMode = launchModeMeta === 'external' ? 'external' : 'embedded';
   
   // New: appIdentifier
   let appIdentifier = doc.querySelector('meta[name="app-identifier"]')?.getAttribute('content');
@@ -194,7 +196,8 @@ export async function installApp(
     installSource: options?.installSource,
     zipBlob: file,
     appIdentifier,
-    officialWebsite
+    officialWebsite,
+    launchMode
   };
   
   const overrides = options?.metadataOverrides || {};

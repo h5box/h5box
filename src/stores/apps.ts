@@ -351,6 +351,7 @@ export const useAppStore = defineStore('apps', {
               repository: typeof raw.repository === 'string' ? raw.repository : undefined,
               appIdentifier: normalizeString(raw.appIdentifier) || undefined,
               officialWebsite: normalizeString(raw.officialWebsite) || undefined,
+              launchMode: normalizeString(raw.launchMode) === 'external' ? 'external' : 'embedded',
               order
             }
           });

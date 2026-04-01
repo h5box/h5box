@@ -62,7 +62,8 @@ const save = async () => {
         order: baseApp.order,
         repository: baseApp.repository,
         appIdentifier: baseApp.appIdentifier,
-        officialWebsite: baseApp.officialWebsite
+        officialWebsite: baseApp.officialWebsite,
+        launchMode: baseApp.launchMode || 'embedded'
     };
     
     // 2. Merge form data
@@ -147,6 +148,15 @@ const handleIconChange = (e: Event) => {
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">官方网站 (Official Website)</label>
             <input v-model="form.officialWebsite" type="text" class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">打开方式</label>
+            <select v-model="form.launchMode" class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="embedded">嵌入窗口</option>
+                <option value="external">外部窗口（兼容模式）</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">依赖登录态、验证码或第三方 Cookie 的网站，建议改为外部窗口。</p>
         </div>
         
         <div>

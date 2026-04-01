@@ -1,5 +1,7 @@
 import { openDB, type DBSchema } from 'idb';
 
+export type AppLaunchMode = 'embedded' | 'external';
+
 export interface AppMetadata {
   id: string;
   title: string;
@@ -17,6 +19,7 @@ export interface AppMetadata {
   order?: number;
   repository?: string;
   isNew?: boolean;
+  launchMode?: AppLaunchMode;
 }
 
 interface AppDB extends DBSchema {

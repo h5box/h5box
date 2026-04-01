@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import { useAppStore } from '../stores/apps';
 import JSZip from 'jszip';
 import { useToast } from '../composables/useToast';
+import type { AppLaunchMode } from '../db';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -21,6 +22,7 @@ const onlineAppTitle = ref('');
 const onlineAppUrl = ref('');
 const onlineAppIconFile = ref<File | null>(null);
 const onlineAppIconPreview = ref<string>('');
+const onlineAppLaunchMode = ref<AppLaunchMode>('embedded');
 const isInstalling = ref(false);
 
 const recommendedApps = [
@@ -33,7 +35,13 @@ const recommendedApps = [
     }
 ];
 
-const createOnlineAppZip = async (title: string, url: string, iconContent?: string, specificAppIdentifier?: string) => {
+const createOnlineAppZip = async (
+    title: string,
+    url: string,
+    iconContent?: string,
+    specificAppIdentifier?: string,
+    launchMode: AppLaunchMode = 'embedded'
+) => {
     const zip = new JSZip();
     
     // Handle Icon
@@ -72,6 +80,7 @@ const createOnlineAppZip = async (title: string, url: string, iconContent?: stri
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="app-identifier" content="${appIdentifier}">
+    <meta name="app-launch-mode" content="${launchMode}">
     <link rel="canonical" href="${url}">
     <title>${title}</title>
     ${iconFilename ? `<link rel="icon" href="${iconFilename}">` : (iconData.startsWith('http') ? `<link rel="icon" href="${iconData}">` : '')}
@@ -251,7 +260,13 @@ const handleAddOnlineApp = async () => {
         // Since we can't easily fetch cross-origin favicons, we'll use a default icon
         let iconContent = onlineAppIconPreview.value || undefined;
         
-        const file = await createOnlineAppZip(onlineAppTitle.value, onlineAppUrl.value, iconContent);
+        const file = await createOnlineAppZip(
+            onlineAppTitle.value,
+            onlineAppUrl.value,
+            iconContent,
+            undefined,
+            onlineAppLaunchMode.value
+        );
         await appStore.installFromFileSmart(file, 'Online');
         addToast(`已添加应用: ${onlineAppTitle.value}`, 'success');
         emit('close');
@@ -261,6 +276,7 @@ const handleAddOnlineApp = async () => {
         onlineAppUrl.value = '';
         onlineAppIconFile.value = null;
         onlineAppIconPreview.value = '';
+        onlineAppLaunchMode.value = 'embedded';
     } catch (e) {
         console.error(e);
         addToast('添加失败', 'error');
@@ -412,6 +428,32 @@ watch(onlineAppUrl, (newUrl) => {
                               <input type="file" accept="image/*" @change="handleIconChange" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-300" />
                               <p class="mt-1 text-xs text-gray-500">如果自动获取失败，请手动上传图标</p>
                           </div>
+                      </div>
+                  </div>
+
+                  <div>
+                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">打开方式</label>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors"
+                                 :class="onlineAppLaunchMode === 'embedded'
+                                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400'
+                                   : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60'">
+                              <input v-model="onlineAppLaunchMode" type="radio" value="embedded" class="mt-1">
+                              <div>
+                                  <div class="text-sm font-medium text-gray-800 dark:text-gray-100">嵌入窗口</div>
+                                  <div class="text-xs text-gray-500 dark:text-gray-400">适合普通展示型网站，可直接显示在 H5Box 窗口里。</div>
+                              </div>
+                          </label>
+                          <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors"
+                                 :class="onlineAppLaunchMode === 'external'
+                                   ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-400'
+                                   : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60'">
+                              <input v-model="onlineAppLaunchMode" type="radio" value="external" class="mt-1">
+                              <div>
+                                  <div class="text-sm font-medium text-gray-800 dark:text-gray-100">兼容模式</div>
+                                  <div class="text-xs text-gray-500 dark:text-gray-400">优先在外部窗口打开，适合登录站、后台、AI 控制台等依赖 Cookie 的网站。</div>
+                              </div>
+                          </label>
                       </div>
                   </div>
 
